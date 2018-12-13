@@ -198,7 +198,8 @@ public:
         T = T - dt;
       }
 
-      double sinPitch = A + C;
+      // Minor loop
+      double sinPitch = A + (lastT - T)*B + C;
       double targetPitch = deg(asin(sinPitch));
       // Check for Nan
       if (targetPitch == targetPitch) {
