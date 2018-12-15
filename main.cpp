@@ -3,10 +3,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 
-#include <glm/glm.hpp>
-
 using namespace std;
-using namespace glm;
 
 double rad(double a) {
   return a*M_PI/180;
@@ -118,11 +115,11 @@ public:
     double c0 = b0*oldT - b1;
     double c1 = c0*tau - ve*oldT*oldT/2;
 
-    dvec2 mb = dvec2(-vvel, r_t-r-vvel*oldT);
-    dmat2 ma = dmat2(b0, c0, b1, c1);
-    dvec2 mx = inverse(ma)*mb;
-    A = mx.x;
-    B = mx.y;
+    double mbx = -vvel;
+    double mby = r_t-r-vvel*oldT;
+    float det = (b0*c1-c0*b1);
+    A = (c1*mbx-b1*mby)/det;
+    B = (b0*mby-c0*mbx)/det;
   }
 
   void estimation(double r_t, double deltaT, double v_theta_T) {
@@ -140,10 +137,8 @@ public:
     }
 
     // navigation, basis vectors, and additional target conditions
-    dvec3 h_vec = cross(dvec3(0,0,r), dvec3(hvel, 0, vvel));
-    double h = glm::length(h_vec);
-    dvec3 ht_vec = cross(dvec3(0,0,r_t), dvec3(v_theta_T, 0, 0));
-    double ht = glm::length(ht_vec);
+    double h = r*hvel;
+    double ht = r_t*v_theta_T;
     double dh = ht - h;
     double rbar = (r + r_t)/2;
 

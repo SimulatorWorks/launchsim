@@ -1,2 +1,4 @@
+FLAGS = -pedantic -Wall -Wextra -std=c++14
+
 launchsim: main.cpp
-	g++ -g -Wall main.cpp -o launchsim -std=c++14
+	g++ -g $(FLAGS) main.cpp -o launchsim 
