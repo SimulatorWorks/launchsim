@@ -1,7 +1,10 @@
 #include <iostream>
+#include <fstream>
 #include <vector>
 #define _USE_MATH_DEFINES
 #include <cmath>
+
+#include "rocket.hpp"
 
 using namespace std;
 
@@ -13,19 +16,12 @@ double deg(double a) {
   return a*180/M_PI;
 }
 
-struct stage {
-  double dryMass;
-  double wetMass;
-  double thrust;
-  double isp;
-};
-
 class Sim {
 
 private:
   double acc = 0.0;
   bool enginesOn = true;
-  vector<stage> rocket;
+  const Rocket& rocket;
   int currentStageId = 0;
   float currentPropellantMass = 0;
 
@@ -66,6 +62,10 @@ private:
   float apo;
 
 public:
+  Sim(const Rocket &rocket) : rocket(rocket) {
+    currentStageId = rocket.firstStage();
+    currentPropellantMass = rocket.getStage(currentStageId).getPropellantMass();
+  }
   void step() {
     acc = 0;
     if (!enginesOn) return;
@@ -76,26 +76,27 @@ public:
     while (currentPropellantMass <= 0.0 && currentStageId >= 0) {
       cout << "STAGED #" << currentStageId << endl;
       currentStageId -= 1;
-      currentPropellantMass = rocket[currentStageId].wetMass-rocket[currentStageId].dryMass;
+      currentPropellantMass = rocket.getStage(currentStageId).getPropellantMass();
     }
 
     // If last stage expanded, its over
     if (currentStageId == -1) {
-      currentMass = rocket[0].dryMass;
+      currentMass = rocket.getStage(0).getDryMass();
       return;
     }
 
-    stage currentStage = rocket[currentStageId];
+    const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
 
     // Get current mass
-    currentMass = currentStage.dryMass+currentPropellantMass;
+    currentMass = currentStage.getDryMass()+currentPropellantMass;
+    // Accumulate wet mass of upper stages
     for (int i=currentStageId-1;i>=0;i--) {
-      currentMass += rocket[i].wetMass;
+      currentMass += rocket.getStage(i).getWetMass();
     }
     // Deduce acc from current mass
-    acc = currentStage.thrust/currentMass;
+    acc = currentStage.getThrust()/currentMass;
     // Remove propellant mass
-    double massflowrate = currentStage.thrust/(g0*currentStage.isp);
+    double massflowrate = currentStage.getThrust()/(g0*currentStage.getISP());
     currentPropellantMass -= dt*massflowrate;
   }
 
@@ -104,10 +105,10 @@ public:
   }
 
   void guidance(double oldT, double r_t) {
-    stage currentStage = rocket[currentStageId];
+    const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
 
     double r = length(posx, posy);
-    double ve = g0*currentStage.isp;
+    double ve = g0*currentStage.getISP();
     double tau = ve/acc;
 
     double b0 = -ve*log(1-oldT/tau);
@@ -123,12 +124,12 @@ public:
   }
 
   void estimation(double r_t, double deltaT, double v_theta_T) {
-    stage currentStage = rocket[currentStageId];
+    const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
 
     double oldT = T;
 
     double r = length(posx, posy);
-    double ve = g0*currentStage.isp;
+    double ve = g0*currentStage.getISP();
     double tau = ve/acc;
 
     if (oldT < -5) {
@@ -254,11 +255,6 @@ public:
     peri = ((1-e)*a)-seaLevel;
   }
 
-  void setRocket(vector<stage> rocket) {
-    this->rocket = rocket;
-    currentStageId = rocket.size() - 1;
-    currentPropellantMass = rocket.back().wetMass-rocket.back().dryMass;
-  }
   void launch() {
     displayHeader();
     bool shutdown  = false;
@@ -286,15 +282,17 @@ public:
   }
 };
 
-int main() {
+int main(int argc, char **argv) {
   // Saturn V for skylab configuration
-  vector<stage> rocket;
-  rocket.push_back({88.6, 88.6 , 0, 0});
-  rocket.push_back({39, 491, 5116, 421});
-  rocket.push_back({135.2, 2286, 38703, 304});
+  if (argc < 2) {
+    cout << "No file given" << endl;
+    exit(0);
+  }
+  ifstream file(argv[1]);
+  Rocket rocket(file);
+  file.close();
 
-  Sim sim;
-  sim.setRocket(rocket);
+  Sim sim(rocket);
   sim.launch();
   return 0;
 }

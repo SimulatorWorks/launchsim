@@ -1,3 +1,4 @@
 launchsim
 out.txt
 .~lock*
+*.o
