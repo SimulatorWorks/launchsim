@@ -5,15 +5,12 @@
 #include <cmath>
 
 #include "rocket.hpp"
+#include "guidance.hpp"
 
 using namespace std;
 
 double rad(double a) {
   return a*M_PI/180;
-}
-
-double deg(double a) {
-  return a*180/M_PI;
 }
 
 class Sim {
@@ -28,8 +25,6 @@ private:
   const double gravity = 3.9860044188E14;
   const double seaLevel = 6357000;
   const double g0 = 9.80665;
-
-  const double target_alt = 185000;
 
   double posx = 0.0;
   double posy = seaLevel;
@@ -49,13 +44,8 @@ private:
   const double dt = 0.1;
   const int displaydt = 10;
 
-  double pitch = 90;
-  double T = -10;
-  double A = 0.0;
-  double B = 0.0;
-  double C = 0.0;
-  double lastT;
-  bool PEGinit = false;
+  Guidance guidance;
+  double pitch = 90.0;
 
   float e;
   float peri;
@@ -102,109 +92,6 @@ public:
 
   double length(double a, double b) {
     return sqrt(a*a+b*b);
-  }
-
-  void guidance(double oldT, double r_t) {
-    const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
-
-    double r = length(posx, posy);
-    double ve = g0*currentStage.getISP();
-    double tau = ve/acc;
-
-    double b0 = -ve*log(1-oldT/tau);
-    double b1 = b0*tau - ve*oldT;
-    double c0 = b0*oldT - b1;
-    double c1 = c0*tau - ve*oldT*oldT/2;
-
-    double mbx = -vvel;
-    double mby = r_t-r-vvel*oldT;
-    float det = (b0*c1-c0*b1);
-    A = (c1*mbx-b1*mby)/det;
-    B = (b0*mby-c0*mbx)/det;
-  }
-
-  void estimation(double r_t, double deltaT, double v_theta_T) {
-    const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
-
-    double oldT = T;
-
-    double r = length(posx, posy);
-    double ve = g0*currentStage.getISP();
-    double tau = ve/acc;
-
-    if (oldT < -5) {
-      oldT = 0.9*tau;
-      guidance(oldT, r_t);
-    }
-
-    // navigation, basis vectors, and additional target conditions
-    double h = r*hvel;
-    double ht = r_t*v_theta_T;
-    double dh = ht - h;
-    double rbar = (r + r_t)/2;
-
-    // Vehicle performance
-    C = (gravity/(r*r) - hvel*hvel/r) / acc;
-    double fr = A + C;
-
-    double CT = (gravity/(r_t*r_t) - v_theta_T*v_theta_T/r_t) / (acc / (1 - oldT/tau));
-    double frT = A + B*oldT + CT;
-    double frdot = (frT - fr)/oldT;
-    double ftheta = 1 - fr*fr/2;
-    double fthetadot = -fr*frdot;
-    double fthetadotdot = -frdot*frdot/2;
-
-    double currentT = oldT-deltaT;
-    double dv = (dh/rbar + ve*currentT*(fthetadot + fthetadotdot*tau) + fthetadotdot*ve*currentT*currentT/2) / (ftheta + fthetadot*tau + fthetadotdot*tau*tau);
-
-    T = tau * (1 - exp(-dv/ve));
-
-    //cout << time << " A = " << A << " B = " << B << " T = " << oldT << " C = " << C << endl;
-
-    // Update until terminal guidance
-    if (T >= 7.5) {
-      guidance(T, r_t);
-    }
-  }
-
-  bool pitchProgram() {
-    // clear tower
-    if (time < 30) pitch = 90.0;
-    // first stage pitch program
-    else if (currentStageId == 2) {
-      pitch -= 0.53*dt;
-    }
-    // peg
-    else {
-      double r_t = seaLevel + target_alt;
-      double v_theta_T = sqrt(gravity/r_t);
-
-      if (!PEGinit) {
-        estimation(r_t, 0, v_theta_T);
-        lastT = T;
-        PEGinit = true;
-      }
-
-      // Major loop
-      double cycleTime = 1.0;
-      if ((lastT - T) >= cycleTime) {
-        estimation(r_t, cycleTime, v_theta_T);
-        lastT = T;
-      } else {
-        T = T - dt;
-      }
-
-      // Minor loop
-      double sinPitch = A + (lastT - T)*B + C;
-      double targetPitch = deg(asin(sinPitch));
-      // Check for Nan
-      if (targetPitch == targetPitch) {
-        pitch = targetPitch;
-        // Termination
-        if (T <= 0.0) return true;
-      }
-    }
-    return false;
   }
 
   void displayHeader() {
@@ -256,12 +143,22 @@ public:
   }
 
   void launch() {
+    double targetRadius = seaLevel + 185000;
+    double targetHoriVel = sqrt(gravity/targetRadius);
+
+    guidance.setPitchProgram(30, 170, 0.53);
+    guidance.setPEGParameters(targetRadius, targetHoriVel, 1.0, 5.0);
+
     displayHeader();
     bool shutdown  = false;
     while (!shutdown) {
       for (int i=0;i<displaydt && !shutdown;i++) {
         if (!shutdown) {
-          shutdown = pitchProgram();
+          double r = length(posx, posy);
+          const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
+          double ve = g0*currentStage.getISP();
+          shutdown = guidance.run(time, dt, gravity, r, ve, acc, hvel, vvel);
+          pitch = guidance.getPitch();
           if (shutdown) {
             enginesOn = false;
           }
@@ -273,11 +170,6 @@ public:
       displayInfo();
     }
     cout << "SHUTDOWN" << endl;
-    if (peri < target_alt - 5000) {
-      cout << "Failure : ";
-    } else {
-      cout << "Success! ";
-    }
     cout << "Insertion in a " << peri/1000 << "kmx" << apo/1000 << "km (e=" << e << ") orbit in " << time << "s" << endl;
   }
 };

@@ -4,7 +4,7 @@ all:launchsim
 clean:rm -rf *.o
 
 # Dependencies
-main.o : rocket.hpp
+main.o : rocket.hpp guidance.hpp
 
 %.o : %.cpp
 	g++ $(FLAGS) -c $< -o $@
