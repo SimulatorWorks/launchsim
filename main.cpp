@@ -146,11 +146,11 @@ public:
     posy += dt*vely + 0.5*accydt*dt;
   }
 
-  void launch() {
-    double targetRadius = seaLevel + 185000;
+  void launch(double start, double end, double pitchRate, double targetAltitude) {
+    double targetRadius = seaLevel + targetAltitude;
     double targetHoriVel = sqrt(mu/targetRadius);
 
-    guidance.setPitchProgram(30, 170, 0.53);
+    guidance.setPitchProgram(start, end, pitchRate);
     guidance.setPEGParameters(targetRadius, targetHoriVel, 1.0, 5.0);
 
     const double dt = 0.02;
@@ -173,6 +173,7 @@ public:
       double impulse = step(dtEngines);
       integrate(impulse, dtEngines);
       acc = impulse/dtEngines;
+      if (currentStageId == -1) enginesOn = false;
       if (displayTime >= displaydt) {
         displayInfo(hvel, vvel);
         displayTime = 0;
@@ -188,15 +189,26 @@ public:
 
 int main(int argc, char **argv) {
   // Saturn V for skylab configuration
+  double start = 30;
+  double end = 167;
+  double pitchRate = 0.43;
+  double targetAltitude = 438000;
+
   if (argc < 2) {
     cout << "No file given" << endl;
     exit(0);
+  } else if (argc == 6) {
+    start = atof(argv[2]);
+    end = atof(argv[3]);
+    pitchRate = atof(argv[4]);
+    targetAltitude = atof(argv[5]);
   }
+
   ifstream file(argv[1]);
   Rocket rocket(file);
   file.close();
 
   Sim sim(rocket);
-  sim.launch();
+  sim.launch(start, end, pitchRate, targetAltitude);
   return 0;
 }
