@@ -1,5 +1,16 @@
 #pragma once
 
+/**
+ * @brief Converts degrees to radians
+ * @details [long description]
+ * 
+ * @param a [description]
+ * @return [description]
+ */
+double rad(double a) {
+  return a*M_PI/180;
+}
+
 class Guidance {
 public:
   Guidance() = default;
@@ -14,7 +25,7 @@ public:
   void setPitchProgram(double start, double end, double pitchRate) {
     this->start = start;
     this->end = end;
-    this->pitchRate = pitchRate;
+    this->pitchRate = rad(pitchRate);
   }
   /**
    * @brief Set Powered Explicit Guidance parameters after pitch program ends
@@ -29,7 +40,7 @@ public:
     this->targetRadius = targetRadius;
     this->targetHoriVel = targetHoriVel;
     this->cycleTime = cycleTime;
-    this->maxPitchRate = maxPitchRate;
+    this->maxPitchRate = rad(maxPitchRate);
   }
   /**
    * @brief Runs guidance
@@ -43,9 +54,9 @@ public:
    * @param acc current thrust (m/s²)
    * @param hvel horizontal velocity (m/s)
    * @param vvel vertical velocity (m/s)
-   * @return true if engines should be shut down, false otherwise
+   * @return time for which engines should run
    */
-  bool run(double time, double dt, double mu, double r, double ve, double acc, double hvel, double vvel);
+  double run(double time, double dt, double mu, double r, double ve, double acc, double hvel, double vvel);
   /**
    * @brief Returns target pitch of vehicle
    * @details [long description]
@@ -124,13 +135,9 @@ void Guidance::estimation(double dt, double mu, double r, double ve, double acc,
   }
 }
 
-double deg(double a) {
-  return a*180/M_PI;
-}
-
-bool Guidance::run(double time, double dt, double mu, double r, double ve, double acc, double hvel, double vvel) {
+double Guidance::run(double time, double dt, double mu, double r, double ve, double acc, double hvel, double vvel) {
   // Vertical ascent
-  if (time < start) pitch = 90.0;
+  if (time < start) pitch = rad(90.0);
   // Pitch program
   else if (time < end) {
     pitch -= pitchRate*dt;
@@ -153,13 +160,13 @@ bool Guidance::run(double time, double dt, double mu, double r, double ve, doubl
 
     // Minor loop
     double sinPitch = A + (lastT - T)*B + C;
-    double targetPitch = deg(asin(sinPitch));
+    double targetPitch = asin(sinPitch);
     // Check for Nan
     if (targetPitch == targetPitch) {
       pitch = pitch + max(-maxPitchRate*dt, min(maxPitchRate*dt, (targetPitch-pitch)));
       // Termination
-      if (T <= 0.0) return true;
-    }
+      return max(0.0, min(dt, T));
+    } else return dt;
   }
-  return false;
+  return dt;
 }
