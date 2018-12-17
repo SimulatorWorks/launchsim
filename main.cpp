@@ -98,7 +98,7 @@ public:
   }
 
   void displayHeader() {
-    cout << "TIME DOWNRANGE(km) ALT(km) HVEL(m/s) VVEL(m/s) PITCH(deg) PERI(km) APO(km) e" << endl;
+    cout << "TIME(s) DOWNRANGE(km) ALT(km) HVEL(m/s) VVEL(m/s) PITCH(deg) PERI(km) APO(km) e" << endl;
   }
 
   auto computeOrbital() {
