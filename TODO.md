@@ -1,5 +1,4 @@
 ### Stage 1
-* Simulate sea level ISP
 * Simulate earth rotation
 * Compute dV losses
 * Indicate if PEG fails to compute parameters
