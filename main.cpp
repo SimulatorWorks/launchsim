@@ -71,6 +71,13 @@ private:
   /// Pitch angle of rocket (radians, pi/2 is straight up, 0 is parallel to ground)
   double pitch = M_PI/2;
 
+  enum class FailReason {
+    NO_FAIL,
+    GUIDANCE,
+    DEVIATION,
+    CRASH
+  };
+
 public:
   Sim(const Rocket &rocket) : rocket(rocket) {
     currentStageId = rocket.firstStage();
@@ -190,24 +197,22 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
   const double dt = 0.02;
   const double displaydt = 1.0;
 
-  vector<double> pegFailTimes;
-
   displayHeader();
   double displayTime = 0.0;
   double acc = 0.0;
-  bool pegFail = false;
-  while (enginesOn) {
+  FailReason reason = FailReason::NO_FAIL;
+  while (reason == FailReason::NO_FAIL && enginesOn) {
     // Get data for guidance
     double r = length(posx, posy);
+    if (r - seaLevel < 0) reason = FailReason::CRASH;
     double ve = g0*rocket.getStage(currentStageId).getISP();
     double hvel = (posy*velx-posx*vely)/r;
     double vvel = (posx*velx+posy*vely)/r;
     // Run guidance
     double dtEngines = guidance.run(time, dt, mu, r, ve, acc, hvel, vvel);
+    // Peg fail
+    if (guidance.failed()) reason = FailReason::GUIDANCE;
     pitch = guidance.getPitch();
-    // Document peg fails
-    if ((guidance.failed() && !pegFail) || (!guidance.failed() && pegFail)) pegFailTimes.push_back(time);
-    pegFail = guidance.failed();
     // Shutdown engines if guidance requested 
     if (dtEngines <= 0.0) enginesOn = false;
     double impulse = step(dtEngines);
@@ -223,21 +228,17 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
       displayTime = 0;
     }
   }
-  cout << "SHUTDOWN" << endl;
-  double apo, peri, e;
-  tie(apo, peri, e) = computeOrbital();
-  cout << "Insertion in a " << peri/1000 << "kmx" << apo/1000 << "km (e=" << e << ") orbit in " << time << "s" << endl;
-  cout << "Remaining propellant mass : " << currentPropellantMass << endl;
-  cout << "Delta-V expanded at cutoff : " << computeExpandedDeltaV() << "m/s" << endl;
-  if (!pegFailTimes.empty()) {
-    cout << "PEG failed at intervals : ";
-    for (size_t i=0;i<pegFailTimes.size();i+=2) {
-      cout << "[" << pegFailTimes[i] << ",";
-      if (i+1 == pegFailTimes.size()) cout << "end";
-      else cout << pegFailTimes[i+1];
-      cout << "[, ";
-    }
-    cout << endl;
+  if (reason == FailReason::NO_FAIL) {
+    double apo, peri, e;
+    tie(apo, peri, e) = computeOrbital();
+    cout << "SHUTDOWN" << endl;
+    cout << "Insertion in a " << peri/1000 << "kmx" << apo/1000 << "km (e=" << e << ") orbit in " << time << "s" << endl;
+    cout << "Remaining propellant mass : " << currentPropellantMass << endl;
+    cout << "Delta-V expanded at cutoff : " << computeExpandedDeltaV() << "m/s" << endl;
+  } else if (reason == FailReason::GUIDANCE) {
+    cout << "Flight terminated because guidance can't find a trajectory" << end;
+  } else if (reason == FailReason::CRASH) {
+    cout << "Rocket crashed" << endl;
   }
 }
 

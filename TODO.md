@@ -1,5 +1,4 @@
 ### Stage 2
-* Simulate crashes
 * Simulate atmospheric drag
 * Simulate aerodynamic failure
 * Simulate atmospheric heating
