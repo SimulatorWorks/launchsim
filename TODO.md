@@ -1,8 +1,5 @@
 ### Stage 1
-* Simulate earth rotation
-* Compute dV losses
 * Indicate if PEG fails to compute parameters
-* Cutoff when orbital speed is exactly reached (might account for vertical velocity)
 ### Stage 2
 * Simulate crashes
 * Simulate atmospheric drag
@@ -16,7 +13,8 @@
 * Ascents on other bodies (LEM ascent)
 * Automatic finding of good parameters for optimal ascent
 ### Stage 4
-* 3D version with azimuth calculations? 
+* 3D version with azimuth calculations?
+* Simulate planet rotation 
 * Historic launchpad coordinates?
 * Orbits beyond one body?
 * Suicide burns
