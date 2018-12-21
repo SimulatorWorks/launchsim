@@ -16,7 +16,7 @@ You can add your own rockets using this sample file, its structure should be as 
 * A `#` symbol means the rest of the line is ignored
 * Each line describes a stage, the topmost line is the topmost stage (or payload), the next is the stage below...
 * A stage can either have no engines : in this case the only value on the line is its mass
-* A stage with engines needs 4 values on the line : dry mass, wet mass, thrust and ISP of the engine(s)
+* A stage with engines needs 5 values on the line : dry mass, wet mass, thrust ISP of the engine(s) in vacuum and at sea level
 * The ISP is in seconds
 * The dry mass and the wet mass need to be the same unit (but can be whatever, kg, ton, slugs, lb) for ALL the stages
 * Thrust needs to be consistent with the previous mass unit (UNIT.m/s², so N if mass is in kg, kN if mass is in tons....)
@@ -24,15 +24,15 @@ You can add your own rockets using this sample file, its structure should be as 
 Let's analyze our sample file : 
 ```
 # SATURN V / SKYLAB (tons, kN)
-88.6                   #SKYLAB
-39 491 5116 421        #S-II
-135.2 2286 38703 304   #S-IC
+88.6                       #SKYLAB
+39 491 5116 421 200        #S-II
+135.2 2286 38703 304 265   #S-IC
 ```
 
 The mass unit is the ton, and the unit of force is the kilonewton. So we can deduce that :
 * The topmost stage (SKYLAB) doesn't have an engine, and weighs 88.6 tons
-* The stage below it (S-II) has engines, weighs 39 tons dry, 491 tons wet, produces 5116kN of thrust and its ISP is 421s.
-* The lowermost stage (S-IC) has engines, weighs 135.2 tons dry, 2286 tons wet, produces 38703kN of thrust and its ISP is 304s.
+* The stage below it (S-II) has engines, weighs 39 tons dry, 491 tons wet, produces 5116kN of thrust and its ISP is 421s in vacuum and 200s at sea level.
+* The lowermost stage (S-IC) has engines, weighs 135.2 tons dry, 2286 tons wet, produces 38703kN of thrust and its ISP is 304s in vacuum and 265 at sea level.
 
 You can find all those numbers for existing rockets on the internet.
 

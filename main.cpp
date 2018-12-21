@@ -109,6 +109,10 @@ public:
   double computeExpandedDeltaV();
 };
 
+double earthPressure(double alt) {
+  return exp(-0.0289644*9.80665*alt/(288.15*8.31447));
+}
+
 double Sim::step(double dt) {
   // No impulse if engines off, duh
   if (!enginesOn) return 0;
@@ -124,7 +128,7 @@ double Sim::step(double dt) {
   if (currentStageId == -1) return 0;
 
   const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
-  // Get change in velocity
+  // Get mass flow rate
   double ve = g0*currentStage.getISP();
   double massflowrate = currentStage.getThrust()/ve;
   // Accumulate wet mass of upper stages
@@ -137,8 +141,11 @@ double Sim::step(double dt) {
   double mass1 = max(currentPropellantMass-massflowrate*dt, 0.0);
   double totalMass0 = payloadMass+mass0;
   double totalMass1 = payloadMass+mass1;
+  // Get actual exhaust velocity
+  double pressure = earthPressure(length(posx, posy)-seaLevel);
+  double atmoVe = g0*(currentStage.getISPSeaLevel()*pressure + currentStage.getISP()*(1-pressure));
   // Impulse (m/s)
-  double impulse = ve*log(totalMass0/totalMass1);
+  double impulse = atmoVe*log(totalMass0/totalMass1);
   // Remove propellant mass
   currentPropellantMass = mass1;
   return impulse;
