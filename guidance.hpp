@@ -36,11 +36,10 @@ public:
    * @param cycleTime time between major loops
    * @param maxPitchRate maximum change of pitch allowed
    */
-  void setPEGParameters(double targetRadius, double targetHoriVel, double cycleTime, double maxPitchRate) {
+  void setPEGParameters(double targetRadius, double targetHoriVel, double cycleTime) {
     this->targetRadius = targetRadius;
     this->targetHoriVel = targetHoriVel;
     this->cycleTime = cycleTime;
-    this->maxPitchRate = rad(maxPitchRate);
   }
   /**
    * @brief Runs guidance
@@ -65,20 +64,30 @@ public:
   double getPitch() {
     return pitch;
   }
+
+  /**
+   * @brief Returns true if PEG failed to compute parameters
+   * @details [long description]
+   * @return [description]
+   */
+  bool failed() {
+    return fail;
+  }
+
 private:
   void guidance(double oldT, double r, double ve, double acc, double vvel);
   void estimation(double dt, double mu, double r, double ve, double acc, double hvel, double vvel);
 
   double T = -1.0;
   double A,B,C,lastT,pitch;
+  double pitchRate = -1.0;
   double cycleTime = 1.0;
-  double maxPitchRate = 1000.0;
   double start = -1.0;
   double end = -1.0;
-  double pitchRate = -1.0;
   double targetRadius = -1.0;
   double targetHoriVel = -1.0;
   bool PEGinit = false;
+  bool fail = false;
 };
 
 using namespace std;
@@ -160,13 +169,15 @@ double Guidance::run(double time, double dt, double mu, double r, double ve, dou
 
     // Minor loop
     double sinPitch = A + (lastT - T)*B + C;
-    double targetPitch = asin(sinPitch);
-    // Check for Nan
-    if (targetPitch == targetPitch) {
-      pitch = pitch + max(-maxPitchRate*dt, min(maxPitchRate*dt, (targetPitch-pitch)));
-      // Termination
+    if (sinPitch <= 1.0 && sinPitch >= -1.0) {
+      fail = false;
+      pitch = asin(sinPitch);
       return max(0.0, min(dt, T));
-    } else return dt;
+    } else {
+      fail = true;
+      return dt;
+    }
   }
+  fail = false;
   return dt;
 }

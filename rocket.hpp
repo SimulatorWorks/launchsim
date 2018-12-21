@@ -111,7 +111,7 @@ Rocket::Rocket(std::istream &input) {
   }
 }
 
-Rocket::Stage::Stage(double mass): Stage(mass, mass, 0, 0, 0) {}
+Rocket::Stage::Stage(double mass): Stage(mass, mass, 0, 1, 1) {}
 
 Rocket::Stage::Stage(double dryMass, double wetMass, double thrust, double isp, double ispSL) {
   if (dryMass < 0 || wetMass < 0 || thrust < 0 || isp < 0 || ispSL < 0 || wetMass < dryMass) throw runtime_error("Incorrect stage parameters");

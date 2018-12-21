@@ -1,5 +1,3 @@
-### Stage 1
-* Indicate if PEG fails to compute parameters
 ### Stage 2
 * Simulate crashes
 * Simulate atmospheric drag

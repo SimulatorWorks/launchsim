@@ -4,6 +4,7 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <tuple>
+#include <iomanip>
 
 #include "rocket.hpp"
 #include "guidance.hpp"
@@ -101,7 +102,16 @@ public:
     double apo, peri, e;
     tie(apo, peri, e) = computeOrbital();
 
-    cout << (int)round(time) << " " << downrange/1000 << " " << alt/1000 << " " << hvel << " " << vvel << " " << deg(pitch) << " " << peri/1000 << " " << apo/1000 << " " << e << endl;
+    cout 
+      << (int)round(time) << " "
+      << downrange/1000 << " "
+      << alt/1000 << " "
+      << hvel << " " 
+      << vvel << " " 
+      << deg(pitch) << " "
+      << peri/1000 << " " 
+      << apo/1000 << " " 
+      << e << endl;
   }
 
   void integrate(double impulse, double dt);
@@ -118,14 +128,11 @@ double Sim::step(double dt) {
   if (!enginesOn) return 0;
 
   // Staging (instantly stage empty stages)
-  while (currentPropellantMass <= 0.0 && currentStageId >= 0) {
+  while (currentPropellantMass <= 0.0 && currentStageId > 0) {
     cout << "STAGED #" << currentStageId << " at " << time << " seconds" << endl;
     currentStageId -= 1;
     currentPropellantMass = rocket.getStage(currentStageId).getPropellantMass();
   }
-
-  // If last stage expanded, its over
-  if (currentStageId == -1) return 0;
 
   const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
   // Get mass flow rate
@@ -178,14 +185,17 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
   double targetHoriVel = sqrt(mu/targetRadius);
 
   guidance.setPitchProgram(start, end, pitchRate);
-  guidance.setPEGParameters(targetRadius, targetHoriVel, 1.0, 5.0);
+  guidance.setPEGParameters(targetRadius, targetHoriVel, 1.0);
 
   const double dt = 0.02;
   const double displaydt = 1.0;
 
+  vector<double> pegFailTimes;
+
   displayHeader();
   double displayTime = 0.0;
   double acc = 0.0;
+  bool pegFail = false;
   while (enginesOn) {
     // Get data for guidance
     double r = length(posx, posy);
@@ -195,13 +205,17 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     // Run guidance
     double dtEngines = guidance.run(time, dt, mu, r, ve, acc, hvel, vvel);
     pitch = guidance.getPitch();
-    // Shutdown engines if guidance requested
+    // Document peg fails
+    if ((guidance.failed() && !pegFail) || (!guidance.failed() && pegFail)) pegFailTimes.push_back(time);
+    pegFail = guidance.failed();
+    // Shutdown engines if guidance requested 
     if (dtEngines <= 0.0) enginesOn = false;
     double impulse = step(dtEngines);
     // Integrate rocket position and velocity
     integrate(impulse, dtEngines);
     acc = impulse/dtEngines;
-    if (currentStageId == -1) enginesOn = false;
+    // Shutdown engines if last stage expanded
+    if (currentStageId == 0 && currentPropellantMass <= 0.0) enginesOn = false;
     // Display log
     displayTime += dt;
     if (displayTime >= displaydt) {
@@ -215,6 +229,16 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
   cout << "Insertion in a " << peri/1000 << "kmx" << apo/1000 << "km (e=" << e << ") orbit in " << time << "s" << endl;
   cout << "Remaining propellant mass : " << currentPropellantMass << endl;
   cout << "Delta-V expanded at cutoff : " << computeExpandedDeltaV() << "m/s" << endl;
+  if (!pegFailTimes.empty()) {
+    cout << "PEG failed at intervals : ";
+    for (size_t i=0;i<pegFailTimes.size();i+=2) {
+      cout << "[" << pegFailTimes[i] << ",";
+      if (i+1 == pegFailTimes.size()) cout << "end";
+      else cout << pegFailTimes[i+1];
+      cout << "[, ";
+    }
+    cout << endl;
+  }
 }
 
 double Sim::computeExpandedDeltaV() {
