@@ -30,13 +30,13 @@ public:
   class Stage {
   public:
     Stage() = default;
-    Stage(double mass);
-    Stage(double dryMass, double wetMass, double thrust, double isp, double ispSL);
+    Stage(double dryMass, double wetMass, double thrust, double isp, double ispSL, double drag);
     double getDryMass() const { return dryMass; }
     double getWetMass() const { return wetMass; }
     double getThrust() const { return thrust; }
     double getISP() const { return isp; }
     double getISPSeaLevel() const { return ispSL; }
+    double getDrag() const { return drag; }
     double getPropellantMass() const { return wetMass-dryMass; }
 
   private:
@@ -45,6 +45,7 @@ public:
     double thrust;
     double isp;
     double ispSL;
+    double drag;
   };
   
   /**
@@ -82,42 +83,49 @@ Rocket::Rocket(std::istream &input) {
   string line;
   int lineNumber = 1;
   while (getline(input, line)) {
-    istringstream iss(line);
-    // Ignore comments lines starting with #
-    skipws(iss);
-    if (iss.peek() == '#') {
+    // Remove comment
+    string line2 = line.substr(0, line.find_first_of("#"));
+    // Remove leading and trailing spaces
+    auto start = line2.find_first_not_of(" \t\r");
+    if (start == string::npos) {
       lineNumber += 1;
       continue;
     }
+    auto endSpace = line2.find_last_not_of(" \t\r");
+    string line3 = line2.substr(start, endSpace-start+1);
+    istringstream iss(line3);
+
     // Extract parameters
-    double dryMass, wetMass, thrust, isp, ispSL;
+    double dryMass, wetMass;
+    double drag = 0;
+    double thrust = 0;
+    double isp = 1;
+    double ispSL = 1;
     Stage stage;
-    iss >> dryMass;
-    if (!iss) error(lineNumber, "First element is invalid");
-    // Ignore whitespace in case of comment tag
-    while (iss.peek() == ' ') iss.ignore(1);
-    if (iss && iss.peek() != '#' && iss.peek() != '\r') {
+    if (!(iss >> dryMass) || dryMass < 0) error(lineNumber, "dry mass invalid");
+    wetMass = dryMass;
+    if (!iss.eof()) {
       // 4 value case
-      if (!(iss >> wetMass)) error(lineNumber, "Second element is invalid");
-      if (!(iss >> thrust)) error(lineNumber, "Third element is invalid");
-      if (!(iss >> isp)) error(lineNumber, "Fourth element is invalid");
-      if (!(iss >> ispSL)) error(lineNumber, "Fifth element is invalid");
-      stage = Stage(dryMass, wetMass, thrust, isp, ispSL);
-    } else {
-      stage = Stage(dryMass);
+      if (!(iss >> wetMass) || wetMass < dryMass) error(lineNumber, "wet mass invalid");
+      if (!(iss >> thrust) || thrust < 0) error(lineNumber, "thrust invalid");
+      if (!(iss >> isp) || isp < 0) error(lineNumber, "isp invalid");
+      if (!(iss >> ispSL) || ispSL < 0) error(lineNumber, "sea level isp invalid");
+      if (!iss.eof()) {
+        if (!(iss >> drag)) error(lineNumber, "drag invalid");
+      }
     }
+    stage = Stage(dryMass, wetMass, thrust, isp, ispSL, drag);
     addStage(stage);
     lineNumber += 1;
   }
 }
 
-Rocket::Stage::Stage(double mass): Stage(mass, mass, 0, 1, 1) {}
-
-Rocket::Stage::Stage(double dryMass, double wetMass, double thrust, double isp, double ispSL) {
-  if (dryMass < 0 || wetMass < 0 || thrust < 0 || isp < 0 || ispSL < 0 || wetMass < dryMass) throw runtime_error("Incorrect stage parameters");
+Rocket::Stage::Stage(double dryMass, double wetMass, double thrust, double isp, double ispSL, double drag) {
+  if (dryMass < 0 || wetMass < 0 || thrust < 0 || isp < 0 || ispSL < 0 || wetMass < dryMass || drag < 0) throw runtime_error("Incorrect stage parameters");
   this->dryMass = dryMass;
   this->wetMass = wetMass;
   this->thrust = thrust;
   this->isp = isp;
   this->ispSL = ispSL;
+  this->drag = drag;
 }

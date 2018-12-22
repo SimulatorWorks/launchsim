@@ -78,17 +78,11 @@ private:
     CRASH
   };
 
-public:
-  Sim(const Rocket &rocket) : rocket(rocket) {
-    currentStageId = rocket.firstStage();
-    currentPropellantMass = rocket.getStage(currentStageId).getPropellantMass();
-  }
+  double getCurrentMass();
   double step(double dt);
-
   void displayHeader() {
     cout << "TIME(s) DOWNRANGE(km) ALT(km) HVEL(m/s) VVEL(m/s) PITCH(deg) PERI(km) APO(km) e" << endl;
   }
-
   auto computeOrbital() {
     double r = length(posx, posy);
     double v = length(velx, vely);
@@ -121,13 +115,33 @@ public:
       << e << endl;
   }
 
-  void integrate(double impulse, double dt);
-  void launch(double start, double end, double pitchRate, double targetAltitude);
+  void integrate(double impulse, double dragAcc, double dt);
   double computeExpandedDeltaV();
+
+public:
+  Sim(const Rocket &rocket) : rocket(rocket) {
+    currentStageId = rocket.firstStage();
+    currentPropellantMass = rocket.getStage(currentStageId).getPropellantMass();
+  }
+  
+  void launch(double start, double end, double pitchRate, double targetAltitude);
 };
 
 double earthPressure(double alt) {
-  return exp(-0.0289644*9.80665*alt/(288.15*8.31447));
+  return 101325*exp(-0.0289644*9.80665*alt/(288.15*8.31447));
+}
+
+double earthDensity(double alt) {
+  return 1.2250*exp(-0.0289644*9.80665*alt/(288.15*8.31447));
+}
+
+double Sim::getCurrentMass() {
+  const Rocket::Stage& currentStage = rocket.getStage(currentStageId);
+  double payloadMass = currentStage.getDryMass();
+  for (int i=currentStageId-1;i>=0;i--) {
+    payloadMass += rocket.getStage(i).getWetMass();
+  }
+  return payloadMass + currentPropellantMass;
 }
 
 double Sim::step(double dt) {
@@ -156,7 +170,7 @@ double Sim::step(double dt) {
   double totalMass0 = payloadMass+mass0;
   double totalMass1 = payloadMass+mass1;
   // Get actual exhaust velocity
-  double pressure = earthPressure(length(posx, posy)-seaLevel);
+  double pressure = earthPressure(length(posx, posy)-seaLevel)/earthPressure(0);
   double atmoVe = g0*(currentStage.getISPSeaLevel()*pressure + currentStage.getISP()*(1-pressure));
   // Impulse (m/s)
   double impulse = atmoVe*log(totalMass0/totalMass1);
@@ -165,19 +179,23 @@ double Sim::step(double dt) {
   return impulse;
 }
 
-void Sim::integrate(double impulse, double dt) {
-  double dirx = posx/length(posx, posy);
-  double diry = posy/length(posx, posy);
+void Sim::integrate(double impulse, double dragAcc, double dt) {
+  double r2 = posx*posx+posy*posy;
+  double r = sqrt(r2);
+  double dirx = posx/r;
+  double diry = posy/r;
 
   double cosp = cos(pitch);
   double sinp = sin(pitch);
 
-  // gravity
-  double r2 = posx*posx+posy*posy;
+  // Get thrust direction
   double thrustDirx = diry*cosp+dirx*sinp;
   double thrustDiry = diry*sinp-dirx*cosp;
-  double accxdt = thrustDirx*impulse - dt*dirx*mu/r2;
-  double accydt = thrustDiry*impulse - dt*diry*mu/r2;
+  // Gravity
+  double gravity = dt*mu/r2;
+  // Subtract gravity and drag
+  double accxdt = thrustDirx*impulse - dirx*gravity - velx*dragAcc;
+  double accydt = thrustDiry*impulse - diry*gravity - vely*dragAcc;
 
   velx += accxdt;
   vely += accydt;
@@ -212,12 +230,17 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     double dtEngines = guidance.run(time, dt, mu, r, ve, acc, hvel, vvel);
     // Peg fail
     if (guidance.failed()) reason = FailReason::GUIDANCE;
-    pitch = guidance.getPitch();
+    // Set pitch
+    const double maxPitchRate = rad(2.0);
+    pitch += min(maxPitchRate*dt, max(-maxPitchRate*dt, guidance.getPitch()-pitch));
     // Shutdown engines if guidance requested 
     if (dtEngines <= 0.0) enginesOn = false;
+    // Drag calculation
+    double dragAcc = dt*0.5*earthDensity(r-seaLevel)*sqrt(velx*velx+vely*vely)*rocket.getStage(currentStageId).getDrag()/getCurrentMass();
+    // Engine function generating thrust
     double impulse = step(dtEngines);
     // Integrate rocket position and velocity
-    integrate(impulse, dtEngines);
+    integrate(impulse, dragAcc, dtEngines);
     acc = impulse/dtEngines;
     // Shutdown engines if last stage expanded
     if (currentStageId == 0 && currentPropellantMass <= 0.0) enginesOn = false;
@@ -236,7 +259,7 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     cout << "Remaining propellant mass : " << currentPropellantMass << endl;
     cout << "Delta-V expanded at cutoff : " << computeExpandedDeltaV() << "m/s" << endl;
   } else if (reason == FailReason::GUIDANCE) {
-    cout << "Flight terminated because guidance can't find a trajectory" << end;
+    cout << "Flight terminated because guidance can't find a trajectory" << endl;
   } else if (reason == FailReason::CRASH) {
     cout << "Rocket crashed" << endl;
   }
@@ -260,7 +283,7 @@ int main(int argc, char **argv) {
   // Saturn V for skylab configuration
   double start = 30;
   double end = 167;
-  double pitchRate = 0.43;
+  double pitchRate = 0.42;
   double targetAltitude = 438000;
 
   if (argc < 2) {

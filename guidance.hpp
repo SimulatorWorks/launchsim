@@ -34,7 +34,6 @@ public:
    * @param targetRadius radius of target orbit (meters from center of body)
    * @param targetHoriVel horizontal velocity of target orbit (meters/seconds)
    * @param cycleTime time between major loops
-   * @param maxPitchRate maximum change of pitch allowed
    */
   void setPEGParameters(double targetRadius, double targetHoriVel, double cycleTime) {
     this->targetRadius = targetRadius;

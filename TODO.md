@@ -1,8 +1,8 @@
 ### Stage 2
-* Simulate atmospheric drag
 * Simulate aerodynamic failure
 * Simulate atmospheric heating
 * Simulate times between staging
+* Simulate gimbal speed
 ### Stage 3
 * Implement multi-stage PEG
 * Implement impossible to shutdown solid motors?
