@@ -75,7 +75,8 @@ private:
     NO_FAIL,
     GUIDANCE,
     DEVIATION,
-    CRASH
+    CRASH,
+    AERODYNAMIC,
   };
 
   double getCurrentMass();
@@ -226,6 +227,12 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     double ve = g0*rocket.getStage(currentStageId).getISP();
     double hvel = (posy*velx-posx*vely)/r;
     double vvel = (posx*velx+posy*vely)/r;
+    // Check AoA
+    double aoa = abs(atan2(vvel, hvel)-pitch);
+    // Dynamic pressure
+    double airDensity = earthDensity(r-seaLevel);
+    double dynPressure = 0.5*airDensity*(velx*velx+vely*vely);
+    if (sin(aoa)*dynPressure >= 1000) reason = FailReason::AERODYNAMIC;
     // Run guidance
     double dtEngines = guidance.run(time, dt, mu, r, ve, acc, hvel, vvel);
     // Peg fail
@@ -236,7 +243,7 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     // Shutdown engines if guidance requested 
     if (dtEngines <= 0.0) enginesOn = false;
     // Drag calculation
-    double dragAcc = dt*0.5*earthDensity(r-seaLevel)*sqrt(velx*velx+vely*vely)*rocket.getStage(currentStageId).getDrag()/getCurrentMass();
+    double dragAcc = dt*0.5*airDensity*sqrt(velx*velx+vely*vely)*rocket.getStage(currentStageId).getDrag()/getCurrentMass();
     // Engine function generating thrust
     double impulse = step(dtEngines);
     // Integrate rocket position and velocity
@@ -262,6 +269,8 @@ void Sim::launch(double start, double end, double pitchRate, double targetAltitu
     cout << "Flight terminated because guidance can't find a trajectory" << endl;
   } else if (reason == FailReason::CRASH) {
     cout << "Rocket crashed" << endl;
+  } else if (reason == FailReason::AERODYNAMIC) {
+    cout << "Aerodynamic failure due to aoa too big in thick parts of the atmosphere" << endl;
   }
 }
 

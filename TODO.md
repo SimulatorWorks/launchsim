@@ -5,7 +5,6 @@
 * Simulate gimbal speed
 ### Stage 3
 * Implement multi-stage PEG
-* Implement impossible to shutdown solid motors?
 * Provide lots of rocket models
 * Ascents on other bodies (LEM ascent)
 * Automatic finding of good parameters for optimal ascent
